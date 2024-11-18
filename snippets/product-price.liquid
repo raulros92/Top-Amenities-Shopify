@@ -1,0 +1,162 @@
+{% comment %}
+  Renders a list of product's price (regular, sale)
+  Accepts:
+  - product: {Object} Product Liquid object (optional)
+  - use_variant: {Boolean} Renders selected or first variant price instead of overall product pricing (optional)
+  - price_class: {String} Adds a price class to the price element (optional)
+  Usage:
+  {% render 'price', product: product %}
+{% endcomment %}
+{%- liquid
+  if use_variant
+    assign target = product.selected_or_first_available_variant
+  else
+    assign target = product
+  endif
+
+  assign weekly_offer_product = shop.metafields['global.custom'].weekly_offer_product.value
+  assign compare_at_price = target.compare_at_price
+  assign price = target.price | default: 1999
+  assign available = target.available | default: false
+  assign offer_price = product.metafields.custom.oferta | replace: ',', '' | replace: '.', '' | plus: 0
+  assign offer_money_price = offer_price | money
+  assign money_price = price | money
+  if settings.currency_code_enabled
+    assign money_price = price | money_with_currency
+    assign offer_money_price = offer_price | money_with_currency
+  endif
+
+  if target == product and product.price_varies
+    assign money_price = 'products.product.price.from_price_html' | t: price: money_price
+  endif
+
+  assign discounted_class = ''
+  unless product.price_varies == false and product.compare_at_price_varies
+    if compare_at_price != null and compare_at_price != 0 and price != compare_at_price
+      assign discounted_class = 'discounted'
+    endif
+  endunless
+-%}
+
+{% if offer_price != 0 %}
+  {% assign unit_total_price = offer_price %}
+  {% assign liter_total_price = offer_price %}
+{% else %}
+  {% assign unit_total_price = product.price %}
+  {% assign liter_total_price = price %}
+{% endif %}
+
+{%- if liter_total_price != 0 and product.metafields.custom.grundpreis != 0 %}  
+  {% assign liter_total_price_raw = liter_total_price | replace: ',', '.' | remove: '€' | plus: 0 %}
+  {% if offer_price != 0 %}
+    {% assign price_per_liter = liter_total_price_raw | divided_by: product.metafields.custom.grundpreis %}
+  {% else %}
+    {% assign price_per_liter = liter_total_price_raw | divided_by: 100 | divided_by: product.metafields.custom.grundpreis %}
+  {% endif %}
+{% endif %}
+
+<span class="price{% if enlarge %} large-price{% endif %}">
+  {%- unless product.price_varies == false and product.compare_at_price_varies %}
+    {% if compare_at_price != null and compare_at_price != 0 and price != compare_at_price %}
+      <del>
+        <span class="amount {{ discounted_class }}">
+          {%- if settings.currency_code_enabled -%}
+            {{- compare_at_price | money_with_currency -}}
+          {%- else -%}
+            {{- compare_at_price | money -}}
+          {%- endif -%}
+        </span>
+      </del>
+    {% endif %}
+  {%- endunless -%}
+
+  <!-- Página de producto | OFERTA -->
+  {% if show_more_prices and product.metafields.custom.oferta and weekly_offer_product.id == product.id %}
+    <ins>
+      <span class="amount">
+        {{ offer_money_price }}
+      </span>
+    </ins>
+    &nbsp;
+    <ins style="display: flex; align-items: center;">
+      <span
+        class="amount"
+        style="color: #999; font-style: italic; text-decoration: line-through; font-size: 14px;"
+      >
+          {{ money_price }}
+      </span>
+    </ins>
+  {% else %}
+    <ins>
+      <span class="amount">
+          {{ money_price }}
+      </span>
+    </ins>
+  {% endif %}
+
+{%- if product.metafields.custom.grundpreis -%}
+  &nbsp;
+  <small
+    style="color: black; margin: 0"
+    class="unit-price"
+  >
+    <span>
+      {% assign price_after_division = liter_total_price | divided_by: 100 %}
+      {% assign price_per_liter = price_after_division | divided_by: product.metafields.custom.grundpreis %}
+      {{ price_per_liter | round: 2 | replace: '.', ',' }}&nbsp;€
+    </span>
+    <span class="unit-price-separator">/</span>
+    <span>
+      {% assign unit = product.metafields.custom.einheit_grundpreis %}
+      {% if unit == 'Kilogramo' %}
+        <span>Kg</span>
+      {% elsif unit == 'Litros' %}
+        <span>L</span>
+      {% else %}
+        <span>{{ unit }}</span>
+      {% endif %}
+    </span>
+  </small>
+{% endif %}
+&nbsp;
+{% if show_more_prices and product.metafields.custom.inhalt_menge %}
+  <small
+    style="color: black; margin: 0"
+    class="unit-price"
+  >
+    <span>
+      {{ 'products.product.price.price_per_unit' | t }}: &nbsp;
+      {% assign unit_price = unit_total_price | divided_by: product.metafields.custom.inhalt_menge %}
+      {{ unit_price | round: 2 | money }}
+    </span>
+  </small>
+{% endif %}
+{%- if show_badges -%}
+  <span class="badges">
+    {%- if compare_at_price > price %}
+      {%- if settings.sale_badge_type == 'save_amount' -%}
+        {%- capture saved_amount -%}{{ compare_at_price | minus: price | money }}{%- endcapture -%}
+      {%- elsif settings.sale_badge_type == 'save_percentage' -%}
+        {%- capture saved_amount -%}{{ compare_at_price | minus: price | times: 100.0 | divided_by: compare_at_price | round }}%{%- endcapture -%}
+      {%- endif -%}
+      <span class="badge onsale left">
+        {%- if settings.sale_badge_type == 'sale' -%}
+          {{ 'products.product.on_sale' | t }}
+        {%- else -%}
+          {{ 'products.product.save_html' | t: saved_amount: saved_amount }}
+        {%- endif -%}
+      </span>
+    {% endif %}
+    {%- if available == false -%}
+      <span class="badge out-of-stock left">
+        {{ 'products.product.sold_out' | t }}
+      </span>
+    {% endif %}
+    {%- if product.metafields.theme.preorder and product.available -%}
+      <span class="badge pre-order left">
+        {{ 'products.product.pre_order' | t }}
+      </span>
+    {%- endif -%}
+  </span>
+{% endif %}
+</span>

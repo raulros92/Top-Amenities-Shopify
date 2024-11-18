@@ -1,0 +1,89 @@
+{%- liquid
+  # Fetch the Weekly Offer metaobject using type and handle
+  assign weekly_offer = shop.metaobjects['weekly_offer']['weekly-offer-oy3vizpo']
+  
+  # Extract the product ID from the product field
+  assign product_gid = weekly_offer.product
+  
+  # Fetch the product using its Global ID (GID)
+  assign weekly_offer_product = all_products[product_gid]
+  
+  # Get the product's featured image
+  assign weekly_offer_image = weekly_offer_product.featured_image
+  
+  # Format prices
+  assign offer_price = weekly_offer_product.metafields.custom.oferta | replace: ',', '' | replace: '.', ''
+  assign price = weekly_offer_product.price | default: 1999
+  assign money_price = price | money
+  assign offer_money_price = offer_price | money
+  if settings.currency_code_enabled
+    assign money_price = price | money_with_currency
+    assign offer_money_price = offer_price | money_with_currency
+  endif
+
+  # Calculate discount
+  assign discount_amount = price | minus: offer_price
+  assign price_float = price | plus: 0.0
+  assign discount_percentage = discount_amount | divided_by: price_float | times: 100
+-%}
+
+{{ 'offer-banner.css' | asset_url | stylesheet_tag }}
+
+<div class="offer-banner hide-in-editor" id="mainOfferBanner">
+  <div class="offer-banner__container">
+    <div class="offer-banner__container__header">
+      <button id="hideOfferBannerBtn">
+        {{ 'general.hide' | t }}
+        {%- render 'svg-icons' with 'thb-post-nav-arrow-left' %}
+      </button>
+    </div>
+    <div class="offer-banner__container__image-container">
+      <!-- Render the image with dynamic handling -->
+      <a href="/products/{{ weekly_offer_product.handle }}">
+        {% if weekly_offer_image %}
+          <img src="{{ weekly_offer_image | img_url: 'medium' }}" alt="{{ weekly_offer_product.title }}">
+        {% else %}
+          <!-- Fallback to placeholder image -->
+          <img src="https://via.placeholder.com/365x470.png?text=No+Image" alt="No Image Available">
+        {% endif %}
+      </a>
+    </div>
+    <div class="offer-banner__content">
+      <div class="offer-banner__content-text">
+        <a href="/products/{{ weekly_offer_product.handle }}">
+          <h2>{{ weekly_offer_product.title }}</h2>
+        </a>
+        <div class="offer-banner__offer-container">
+          <div class="offer-banner__offer">
+            <span class="offer-banner__offer-label">{{ 'weekly_offer.weekly_offer' | t }}</span>
+          </div>
+          <div class="offer-banner__price">
+            <span class="offer-banner__current-price">{{ offer_money_price }}</span>
+            <span class="offer-banner__original-price">{{ money_price }}</span>
+          </div>
+        </div>
+      </div>
+      <a href="/products/{{ weekly_offer_product.handle }}" class="offer-banner__buy-button">
+        <p>{{ 'general.buy' | t | upcase }}</p>
+        {%- render 'svg-icons' with 'cart' %}
+      </a>
+    </div>
+  </div>
+</div>
+
+<button class="alternate-offer-banner" id="showMainBannerBtn" style="
+        {% case request.locale.iso_code %}
+            {%- when 'es' -%} right: -62px;
+            {%- when 'de' -%} right: -94px;
+            {%- when 'it' -%} right: -80px;
+            {%- when 'fr' -%} right: -81px;
+            {%- when 'pt-PT' -%} right: -61px;
+            {%- when 'en' -%} right: -50px;
+            {%- else -%} right: 50px;
+        {% endcase %}
+    ">
+  <p>{{ 'weekly_offer.weekly_offer' | t | upcase }}</p>
+  <p>-{{ discount_percentage | round: 0 }}%</p>
+</button>
+
+<script src="{{ 'offer-banner.js' | asset_url }}" defer="defer"></script>
